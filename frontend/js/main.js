@@ -3,7 +3,7 @@ const BASE_URL = 'https://200okkrishjaiswar-production.up.railway.app';
 const API_BASE_URL = `${BASE_URL}/api`;
 let supabaseClient = null;
 
-const MOCK_USER_ID = '123e4567-e89b-12d3-a456-426614174000';
+const MOCK_USER_ID = '1';
 
 /**
  * 🚀 APPLICATION LIFECYCLE
@@ -77,7 +77,8 @@ async function getUserId() {
 
 /**
  * 💉 API HELPER
- */
+    */
+async function apiFetch(endpoint, options = {}) {
     try {
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             ...options,
@@ -86,13 +87,13 @@ async function getUserId() {
                 ...(options.headers || {})
             }
         });
-        
+
         if (!response.ok) {
             const errorMsg = await response.text();
             console.error(`API Error (${response.status}) at ${endpoint}:`, errorMsg);
             throw new Error(errorMsg || `API Error: ${response.status}`);
         }
-        
+
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
             const data = await response.json();
@@ -105,7 +106,6 @@ async function getUserId() {
         throw error;
     }
 }
-
 /**
  * 💡 AI INSIGHTS & ANALYTICS
  */
