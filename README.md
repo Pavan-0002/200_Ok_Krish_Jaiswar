@@ -11,7 +11,7 @@ AI-powered personal finance coach for students.
 
 ## 🎥 Demo Video
 
-👉 https://your-video-link.com
+👉https://drive.google.com/file/d/1yur8zEvEaPSzBkmNR4-8gltgXq0kmUTW/view?usp=drive_link
 
 ---
 
