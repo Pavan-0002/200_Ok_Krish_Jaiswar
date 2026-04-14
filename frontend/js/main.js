@@ -20,6 +20,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             setupInsights();
         } else if (path.includes('profile.html')) {
             setupProfile();
+        } else if (path.includes('login.html')) {
+            setupLogin();
+        } else if (path.includes('signup.html')) {
+            setupSignup();
         }
     } catch (error) {
         console.error("Critical System Failure:", error);
@@ -29,11 +33,81 @@ document.addEventListener('DOMContentLoaded', async () => {
 // 🔐 Authentication & Session
 async function initSupabase() {
     try {
-        const { data: config } = await fetch('/auth-config').then(res => res.json()).catch(() => ({}));
-        if (supabaseClient === null && typeof supabase !== 'undefined') {
-            supabaseClient = supabase.createClient(config.url || 'https://mock.supabase.co', config.key || 'mock');
+        const res = await fetch('/auth-config');
+        const config = await res.json();
+        if (config.url && config.key && !config.key.includes("YOUR_SUPABASE")) {
+            supabaseClient = supabase.createClient(config.url, config.key);
+            console.log("Supabase Client initialized successfully.");
+        } else {
+            console.warn("Supabase configuration incomplete. Auth features will use mock tokens.");
         }
-    } catch (e) { console.warn("Supabase auth bypassed for local dev"); }
+    } catch (e) { console.warn("Supabase auth backend unreachable, using mock."); }
+}
+
+async function setupLogin() {
+    const form = document.getElementById('loginForm');
+    if (!form) return;
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        const alertBox = document.getElementById('loginAlert');
+
+        try {
+            console.log("Attempting sign in...");
+            if (supabaseClient) {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                showToast("Welcome back! ✨", "success");
+            } else {
+                showToast("Mock Sign-In Successful (No Supabase Keys)", "info");
+            }
+            setTimeout(() => window.location.href = 'dashboard.html', 1000);
+        } catch (err) {
+            console.error("Login Error:", err.message);
+            if (alertBox) {
+                alertBox.innerText = err.message;
+                alertBox.style.display = 'block';
+            }
+            showToast("Login Failed", "danger");
+        }
+    };
+}
+
+async function setupSignup() {
+    const form = document.getElementById('signupForm');
+    if (!form) return;
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('nameInput').value;
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        const alertBox = document.getElementById('signupAlert');
+
+        try {
+            if (supabaseClient) {
+                const { data, error } = await supabaseClient.auth.signUp({ 
+                    email, 
+                    password,
+                    options: { data: { full_name: name } }
+                });
+                if (error) throw error;
+                showToast("Account created! Please check your email.", "success");
+            } else {
+                showToast("Mock Sign-Up Successful (No Supabase Keys)", "info");
+            }
+            setTimeout(() => window.location.href = 'login.html', 2000);
+        } catch (err) {
+            console.error("Signup Error:", err.message);
+            if (alertBox) {
+                alertBox.innerText = err.message;
+                alertBox.style.display = 'block';
+            }
+            showToast("Signup Failed", "danger");
+        }
+    };
 }
 
 async function getUserId() {
@@ -430,6 +504,16 @@ function setupGlobalNavigation() {
     if (fab) fab.onclick = () => modal.classList.add('active');
     if (close) close.onclick = () => modal.classList.remove('active');
     
+    // Logout Logic
+    const logoutBtn = document.querySelector('[aria-label="Logout"]') || document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.onclick = async () => {
+            if (supabaseClient) await supabaseClient.auth.signOut();
+            showToast("Signed out", "info");
+            setTimeout(() => window.location.href = 'login.html', 500);
+        };
+    }
+
     if (submit) {
         submit.onclick = async () => {
             const amount = parseFloat(document.getElementById('expenseAmount').value);

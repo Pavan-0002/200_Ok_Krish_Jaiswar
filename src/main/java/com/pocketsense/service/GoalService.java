@@ -40,9 +40,9 @@ public class GoalService {
     public GoalResponse getGoalResponse(UUID userId) {
         List<Goal> goals = goalRepository.findAllByUserId(userId);
         if (goals.isEmpty()) {
-            return new GoalResponse(0.0, LocalDate.now(), 0.0, 0.0, 0L, 0.0, "No active goal ❌");
+            return new GoalResponse(0.0, LocalDate.now(), 0.0, 0.0, 0.0, 0L, 0.0, "No active goal ❌");
         }
-        Goal goal = goals.get(goals.size() - 1); // Get latest goal
+        Goal goal = goals.get(goals.size() - 1); 
 
         List<com.pocketsense.model.Saving> savings = savingRepository.findByUserId(userId);
         double totalSaved = savings.stream().mapToDouble(com.pocketsense.model.Saving::getAmount).sum();
@@ -51,7 +51,6 @@ public class GoalService {
         long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), goal.getDeadline());
         if (daysRemaining < 0) daysRemaining = 0;
 
-        // Progress tracking:
         double progress = 0.0;
         if(goal.getTargetAmount() > 0) {
             progress = (totalSaved / goal.getTargetAmount()) * 100;
@@ -63,14 +62,16 @@ public class GoalService {
         }
         
         String status = "On Track ✅";
-        if(progress < (100.0 * (ChronoUnit.DAYS.between(goal.getCreatedAt() != null ? goal.getCreatedAt().toLocalDate() : LocalDate.now().minusDays(30), LocalDate.now()) / Math.max(1, ChronoUnit.DAYS.between(goal.getCreatedAt() != null ? goal.getCreatedAt().toLocalDate() : LocalDate.now().minusDays(30), goal.getDeadline()))))) {
-             // simplified: if progress is less than time elapsed, or just use a simple threshold
-             if (progress < 20 && daysRemaining < 60) status = "Behind ⚠️";
+        LocalDate start = goal.getCreatedAt() != null ? goal.getCreatedAt() : LocalDate.now().minusDays(30);
+        long totalDays = Math.max(1, ChronoUnit.DAYS.between(start, goal.getDeadline()));
+        long elapsedDays = Math.max(0, ChronoUnit.DAYS.between(start, LocalDate.now()));
+        double expectedProgress = (double) elapsedDays / totalDays * 100;
+
+        if (progress < expectedProgress * 0.8) {
+             status = "Behind ⚠️";
         }
         
-        // Simple "Behind" logic: if amount remaining > 0 and days == 0, or if daily needed is too high
         if (remainingAmount > 0 && daysRemaining == 0) status = "Behind ⚠️";
-        if (dailySavingsNeeded > 1000) status = "Behind ⚠️"; // Just a mock threshold for "Behind"
 
         return new GoalResponse(
                 goal.getTargetAmount(),

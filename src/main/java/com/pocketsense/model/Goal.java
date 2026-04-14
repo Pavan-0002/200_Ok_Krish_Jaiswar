@@ -27,4 +27,6 @@ public class Goal {
 
     @Column(nullable = false)
     private LocalDate deadline;
+
+    private LocalDate createdAt = LocalDate.now();
 }
