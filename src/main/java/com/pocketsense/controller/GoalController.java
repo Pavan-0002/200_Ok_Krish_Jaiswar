@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/api")
+@RequestMapping("/api/goals")
 public class GoalController {
 
     private static final Logger logger = LoggerFactory.getLogger(GoalController.class);
@@ -35,7 +35,7 @@ public class GoalController {
         }
     }
 
-    @GetMapping("/goal/{userId}")
+    @GetMapping("/{userId}")
     public ResponseEntity<?> getGoal(@PathVariable UUID userId) {
         try {
             if (userId == null) return ResponseEntity.badRequest().body("User ID required");

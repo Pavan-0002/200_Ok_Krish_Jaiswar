@@ -12,4 +12,7 @@ public class InsightResponse {
     private String trend;
     private String message;
     private List<String> badges;
+    private Double totalSpending;
+    private Double regretSpending;
+    private Integer healthScore;
 }

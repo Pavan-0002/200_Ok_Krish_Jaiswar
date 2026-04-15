@@ -38,18 +38,15 @@ document.addEventListener('DOMContentLoaded', async () => {
  */
 async function initSupabase() {
     try {
-        // Absolute URL to ensure file-system execution works
         const res = await fetch(`${BASE_URL}/auth-config`);
         if (!res.ok) throw new Error("Could not fetch auth config");
         const config = await res.json();
         
         if (config.url && config.key && !config.key.includes("YOUR_SUPABASE")) {
             supabaseClient = supabase.createClient(config.url, config.key);
-        } else {
-            console.warn("Using Mock Auth: Configuration incomplete.");
         }
     } catch (e) { 
-        console.warn("Using Mock Auth: Backend unreachable."); 
+        // Silent fail for mock/local development flow
     }
 }
 
@@ -67,12 +64,11 @@ async function getAuthenticatedUser() {
 }
 
 async function getUserId() {
-    const user = await getAuthenticatedUser();
-    console.log("User:", user);
-    async function getUserId() {
-    return "123e4567-e89b-12d3-a456-426614174000";
-}
-    return user.id;
+    if (supabaseClient) {
+        const user = await getAuthenticatedUser();
+        if (user) return user.id;
+    }
+    return MOCK_USER_ID;
 }
 
 /**
@@ -163,7 +159,7 @@ async function setupDashboard() {
         const [bData, hData, gData, aData, pData, rData] = await Promise.all([
             apiFetch(`/budget/${userId}`),
             apiFetch(`/health/${userId}`),
-            apiFetch(`/goal/${userId}`),
+            apiFetch(`/goals/${userId}`),
             apiFetch(`/analytics/${userId}`),
             apiFetch(`/prediction/${userId}`),
             apiFetch(`/regret/${userId}`)
@@ -203,10 +199,13 @@ async function setupDashboard() {
  */
 async function setupInsights() {
     const userId = await getUserId();
+    setText('insightPrimaryTitle', 'AI Analyzing...');
+    setText('insightPrimaryDesc', 'Processing your transaction history for patterns...');
+    
     try {
         const data = await apiFetch(`/insights/${userId}`);
-        setText('insightPrimaryTitle', data.personality || 'Analyzing...');
-        setText('insightPrimaryDesc', data.message || '');
+        setText('insightPrimaryTitle', data.personality || 'Balanced Spender');
+        setText('insightPrimaryDesc', data.message || 'No specific insights detected yet.');
         setText('insightStat1', data.topCategory || 'N/A');
         setText('insightStat2', data.trend || 'Stable');
         
@@ -245,7 +244,7 @@ async function setupSavings() {
 
     const fetchSavingsData = async () => {
         try {
-            const data = await apiFetch(`/goal/${userId}`);
+            const data = await apiFetch(`/goals/${userId}`);
             const progress = data.progress || 0;
             const bar = document.getElementById('savingsProgressBarFilled');
             if (bar) {

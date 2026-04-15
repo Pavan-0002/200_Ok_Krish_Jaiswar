@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/api")
+@RequestMapping("/api/insights")
 public class InsightController {
 
     private static final Logger logger = LoggerFactory.getLogger(InsightController.class);
@@ -20,11 +20,34 @@ public class InsightController {
     @Autowired
     private InsightService insightService;
 
-    @GetMapping("/insights/{userId}")
+    @Autowired
+    private com.pocketsense.service.ExpenseService expenseService;
+
+    @GetMapping("/{userId}")
     public ResponseEntity<?> getInsights(@PathVariable UUID userId) {
         try {
             if (userId == null) return ResponseEntity.badRequest().body("User ID is required");
+            
+            // Get base insights
             InsightResponse response = insightService.getInsights(userId);
+            
+            // Get expenses to calculate additional metrics
+            java.util.List<com.pocketsense.model.Expense> expenses = expenseService.getExpensesByUserId(userId);
+            
+            double totalSpending = expenses.stream().mapToDouble(com.pocketsense.model.Expense::getAmount).sum();
+            double regretSpending = expenses.stream()
+                    .filter(e -> Boolean.TRUE.equals(e.getIsRegret()))
+                    .mapToDouble(com.pocketsense.model.Expense::getAmount).sum();
+            
+            int healthScore = 100;
+            if (totalSpending > 0) {
+                healthScore = (int) Math.max(0, 100 - (regretSpending / totalSpending * 100));
+            }
+
+            response.setTotalSpending(totalSpending);
+            response.setRegretSpending(regretSpending);
+            response.setHealthScore(healthScore);
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error fetching insights for user {}: ", userId, e);
