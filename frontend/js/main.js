@@ -10,7 +10,6 @@ const MOCK_USER_ID = '123e4567-e89b-12d3-a456-426614174000';
  */
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        await initSupabase();
         setupGlobalNavigation();
         
         const path = window.location.pathname;
@@ -39,14 +38,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function initSupabase() {
     try {
         const res = await fetch(`${BASE_URL}/auth-config`);
-        if (!res.ok) throw new Error("Could not fetch auth config");
+        if (!res.ok) throw new Error("No config");
+
         const config = await res.json();
-        
-        if (config.url && config.key && !config.key.includes("YOUR_SUPABASE")) {
+
+        if (config.url && config.key) {
             supabaseClient = supabase.createClient(config.url, config.key);
         }
-    } catch (e) { 
-        // Silent fail for mock/local development flow
+    } catch (e) {
+        console.warn("Supabase disabled");
+        supabaseClient = null;
     }
 }
 
