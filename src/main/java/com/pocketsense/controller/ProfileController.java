@@ -1,9 +1,7 @@
 package com.pocketsense.controller;
 
 import com.pocketsense.dto.ProfileRequest;
-import com.pocketsense.model.Expense;
 import com.pocketsense.model.Profile;
-import com.pocketsense.repository.ExpenseRepository;
 import com.pocketsense.service.ProfileService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,10 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @CrossOrigin(origins = "*")
@@ -25,9 +20,6 @@ public class ProfileController {
 
     @Autowired
     private ProfileService profileService;
-
-    @Autowired
-    private ExpenseRepository expenseRepository;
 
     @PostMapping("/profile")
     public ResponseEntity<?> saveProfile(@RequestBody ProfileRequest request) {

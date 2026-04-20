@@ -2,12 +2,8 @@ package com.pocketsense.service;
 
 import com.pocketsense.dto.GoalRequest;
 import com.pocketsense.dto.GoalResponse;
-import com.pocketsense.model.Expense;
 import com.pocketsense.model.Goal;
-import com.pocketsense.model.Profile;
-import com.pocketsense.repository.ExpenseRepository;
 import com.pocketsense.repository.GoalRepository;
-import com.pocketsense.repository.ProfileRepository;
 import com.pocketsense.repository.SavingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,9 +18,6 @@ public class GoalService {
 
     @Autowired
     private GoalRepository goalRepository;
-
-    @Autowired
-    private ExpenseRepository expenseRepository;
 
     @Autowired
     private SavingRepository savingRepository;

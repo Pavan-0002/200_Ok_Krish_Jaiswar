@@ -129,7 +129,7 @@ async function triggerAlertToasts() {
     const container = document.getElementById('dashAlertsContainer');
     
     try {
-        const alerts = await apiFetch(`/alerts/${userId}`);
+        const alerts = await apiFetch(`/alerts/${userId}`).catch(() => []);
         if (container) {
             container.innerHTML = alerts.length ? '' : '<p class="text-secondary text-sm">No recent alerts.</p>';
             alerts.forEach((alert, i) => {
@@ -159,7 +159,7 @@ async function triggerAlertToasts() {
 async function setupDashboard() {
     const userId = await getUserId();
     try {
-        const [bData, hData, gData, aData, pData, rData] = await Promise.all([
+        const results = await Promise.allSettled([
             apiFetch(`/budget/${userId}`),
             apiFetch(`/health/${userId}`),
             apiFetch(`/goal/${userId}`),
@@ -167,6 +167,8 @@ async function setupDashboard() {
             apiFetch(`/prediction/${userId}`),
             apiFetch(`/regret/${userId}`)
         ]);
+
+        const [bData, hData, gData, aData, pData, rData] = results.map(r => r.status === 'fulfilled' ? r.value : {});
 
         const scoreEl = document.getElementById('dashHealthScore');
         if (scoreEl) {
@@ -192,7 +194,7 @@ async function setupDashboard() {
             `;
         }
 
-        const expenses = await apiFetch(`/expenses/${userId}`);
+        const expenses = await apiFetch(`/expenses/${userId}`).catch(() => []);
         renderExpenses(expenses || []);
     } catch (e) { 
         console.error("Dashboard engine failure:", e);
@@ -210,7 +212,7 @@ async function setupInsights() {
     setText('insightPrimaryDesc', 'Processing your transaction history for patterns...');
     
     try {
-        const data = await apiFetch(`/insights/${userId}`);
+        const data = await apiFetch(`/insights/${userId}`).catch(() => ({}));
         setText('insightPrimaryTitle', data.personality || 'Balanced Spender');
         setText('insightPrimaryDesc', data.message || 'No specific insights detected yet.');
         setText('insightStat1', data.topCategory || 'N/A');
@@ -218,7 +220,7 @@ async function setupInsights() {
         
         const ctx = document.getElementById('spendChart')?.getContext('2d');
         if (ctx) {
-            const expenses = await apiFetch(`/expenses/${userId}`);
+            const expenses = await apiFetch(`/expenses/${userId}`).catch(() => []);
             const groups = (expenses || []).reduce((acc, obj) => {
                 const cat = (obj.category || "Other").charAt(0).toUpperCase() + (obj.category || "Other").slice(1).toLowerCase();
                 acc[cat] = (acc[cat] || 0) + obj.amount;
@@ -255,7 +257,7 @@ async function setupSavings() {
 
     const fetchSavingsData = async () => {
         try {
-            const data = await apiFetch(`/goal/${userId}`);
+            const data = await apiFetch(`/goal/${userId}`).catch(() => ({}));
             const progress = data.progress || 0;
             const bar = document.getElementById('savingsProgressBarFilled');
             if (bar) {
@@ -278,7 +280,7 @@ async function setupSavings() {
             setText('savingsDailyMsg', `Target Forecast: ₹${Math.round(data.dailySavingsNeeded || 0)}/day`);
             
             // Also fetch savings list
-            const savings = await apiFetch(`/savings/${userId}`);
+            const savings = await apiFetch(`/savings/${userId}`).catch(() => []);
             renderSavingsList(savings);
         } catch (e) { 
             console.error("Savings fetch failure:", e);
@@ -335,7 +337,7 @@ async function setupProfile() {
 
     const loadProfile = async () => {
         try {
-            const data = await apiFetch(`/profile/${userId}`);
+            const data = await apiFetch(`/profile/${userId}`).catch(() => ({}));
             setValue('profileName', data.name);
             setValue('profileBudget', data.monthlyBudget);
             setValue('profileSavings', data.savingsGoal);
@@ -354,7 +356,7 @@ async function setupProfile() {
             
             const badgeContainer = document.getElementById('badgesContainer');
             if (badgeContainer) {
-                const insights = await apiFetch(`/insights/${userId}`);
+                const insights = await apiFetch(`/insights/${userId}`).catch(() => ({}));
                 badgeContainer.innerHTML = insights.badges?.map(b => `<div class="badge-card"><i class="ph ph-shield-star text-gradient"></i> ${b}</div>`).join('') || '<p class="text-secondary text-sm">No badges yet.</p>';
             }
         } catch (e) { console.error("Profile load failure"); }
