@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PocketSense AI - Smart expense tracking dashboard with AI-powered insights">
   <title>PocketSense AI - Dashboard</title>
   <link rel="stylesheet" href="css/styles.css">
   <style>
@@ -38,7 +39,7 @@
     </header>
 
     <main class="main-content">
-      <div class="mb-8 flex justify-between items-end">
+      <div class="mb-8 flex justify-between items-end" style="flex-wrap:wrap;gap:1rem;">
         <div>
           <p class="text-sm text-secondary font-medium mb-1">TODAY</p>
           <h1 class="text-3xl" id="dashGreeting">Welcome back. <span class="text-gradient">✨</span></h1>
@@ -108,6 +109,13 @@
       </div>
     </main>
     <button class="fab" id="fabAddModal"><i class="ph ph-plus"></i></button>
+
+    <nav class="mobile-bottom-nav">
+      <a href="dashboard.html"><i class="ph ph-squares-four"></i> Dashboard</a>
+      <a href="insights.html"><i class="ph ph-lightbulb"></i> Insights</a>
+      <a href="savings.html"><i class="ph ph-piggy-bank"></i> Savings</a>
+      <a href="profile.html"><i class="ph ph-user-circle"></i> Profile</a>
+    </nav>
   </div>
 
   <!-- Add Expense Modal -->

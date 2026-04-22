@@ -208,43 +208,50 @@ async function setupDashboard() {
  */
 async function setupInsights() {
     const userId = await getUserId();
-    setText('insightPrimaryTitle', 'AI Analyzing...');
-    setText('insightPrimaryDesc', 'Processing your transaction history for patterns...');
-    
+    setText('insightPrimaryTitle', 'Analyzing...');
+    setText('insightPrimaryDesc', 'Processing your spending patterns...');
     try {
-        const data = await apiFetch(`/insights/${userId}`).catch(() => ({}));
-        setText('insightPrimaryTitle', data.personality || 'Balanced Spender');
-        setText('insightPrimaryDesc', data.message || 'No specific insights detected yet.');
-        setText('insightStat1', data.topCategory || 'N/A');
-        setText('insightStat2', data.trend || 'Stable');
-        
+        const [insightData, expenses] = await Promise.all([
+            apiFetch(`/insights/${userId}`).catch(() => ({})),
+            apiFetch(`/expenses/${userId}`).catch(() => [])
+        ]);
+        const exps = Array.isArray(expenses) ? expenses : [];
+        const groups = exps.reduce((acc, obj) => {
+            const cat = (obj.category || 'Other').charAt(0).toUpperCase() + (obj.category || 'Other').slice(1).toLowerCase();
+            acc[cat] = (acc[cat] || 0) + (obj.amount || 0);
+            return acc;
+        }, {});
+        const topCat = Object.keys(groups).sort((a, b) => groups[b] - groups[a])[0] || 'N/A';
+        const personality = insightData.personality || computePersonality(groups, topCat);
+        const totalSpent = Object.values(groups).reduce((a, b) => a + b, 0);
+        const trend = insightData.trend || (totalSpent > 5000 ? '↑ High Spending' : totalSpent > 1000 ? '→ Moderate' : '↓ Low Spending');
+        const msg = insightData.message || `Your top category is ${topCat}. ${totalSpent > 0 ? `Total: ₹${totalSpent.toLocaleString()}` : 'Start logging expenses for insights.'}`;
+        setText('insightPrimaryTitle', personality);
+        setText('insightPrimaryDesc', msg);
+        setText('insightStat1', topCat);
+        setText('insightStat2', trend);
         const ctx = document.getElementById('spendChart')?.getContext('2d');
         if (ctx) {
-            const expenses = await apiFetch(`/expenses/${userId}`).catch(() => []);
-            const groups = (expenses || []).reduce((acc, obj) => {
-                const cat = (obj.category || "Other").charAt(0).toUpperCase() + (obj.category || "Other").slice(1).toLowerCase();
-                acc[cat] = (acc[cat] || 0) + obj.amount;
-                return acc;
-            }, {});
-            
+            const chartLabels = Object.keys(groups).length ? Object.keys(groups) : ['Food', 'Travel', 'Bills'];
+            const chartData = Object.values(groups).length ? Object.values(groups) : [40, 30, 30];
             if (window.mySpendChart) window.mySpendChart.destroy();
             window.mySpendChart = new Chart(ctx, {
                 type: 'doughnut',
-                data: {
-                    labels: Object.keys(groups),
-                    datasets: [{
-                        data: Object.values(groups),
-                        backgroundColor: ['#B500FF', '#00E5FF', '#F43F5E', '#10B981', '#F59E0B']
-                    }]
-                },
-                options: { plugins: { legend: { display: false } }, cutout: '70%', responsive: true }
+                data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: ['#B500FF', '#00E5FF', '#F43F5E', '#10B981', '#F59E0B', '#6366F1'] }] },
+                options: { plugins: { legend: { display: false } }, cutout: '70%', responsive: true, maintainAspectRatio: false }
             });
         }
-    } catch (e) { 
-        console.error("Insights load failure:", e);
-        setText('insightPrimaryTitle', 'Unavailable');
-        setText('insightPrimaryDesc', 'Failed to generate insights. Ensure backend is running.');
+    } catch (e) {
+        console.error('Insights load failure:', e);
+        setText('insightPrimaryTitle', 'Balanced Spender');
+        setText('insightPrimaryDesc', 'Add more transactions to unlock detailed AI insights.');
+        setText('insightStat1', 'N/A');
+        setText('insightStat2', '→ Stable');
     }
+}
+function computePersonality(groups, topCat) {
+    const map = { Food: '🍔 Foodie Spender', Travel: '✈️ Explorer', Movie: '🎬 Entertainment Lover', Bills: '📋 Essential Spender', Shopping: '🛍️ Shopaholic' };
+    return map[topCat] || '💡 Balanced Spender';
 }
 
 /**
@@ -254,76 +261,88 @@ async function setupSavings() {
     const userId = await getUserId();
     const addSavingForm = document.getElementById('addSavingForm');
     const setGoalForm = document.getElementById('setGoalForm');
-
     const fetchSavingsData = async () => {
         try {
-            const data = await apiFetch(`/goal/${userId}`).catch(() => ({}));
+            const [data, expenses, savings] = await Promise.all([
+                apiFetch(`/goal/${userId}`).catch(() => ({})),
+                apiFetch(`/expenses/${userId}`).catch(() => []),
+                apiFetch(`/savings/${userId}`).catch(() => [])
+            ]);
             const progress = data.progress || 0;
+            const isBehind = data.status?.includes('Behind') || false;
             const bar = document.getElementById('savingsProgressBarFilled');
             if (bar) {
-                bar.style.width = `${progress}%`;
-                bar.style.background = data.status?.includes('Behind') ? '#F43F5E' : 'var(--grad-primary)';
+                setTimeout(() => { bar.style.width = `${Math.min(progress, 100)}%`; }, 100);
+                bar.style.background = isBehind ? '#F43F5E' : 'var(--grad-primary)';
             }
             setText('goalPercentageNode', `${Math.round(progress)}%`);
             setText('goalAmountNode', `₹${(data.totalSaved || 0).toLocaleString()} / ₹${(data.targetAmount || 0).toLocaleString()}`);
-            
             const statusNode = document.getElementById('goalStatusNode');
             if (statusNode) {
-                statusNode.innerText = data.status || 'On Track ✅';
-                statusNode.className = `status-badge ${data.status?.includes('Behind') ? 'status-behind' : 'status-on-track'}`;
+                statusNode.innerText = isBehind ? 'Behind Schedule ⚠️' : (data.status || 'On Track ✅');
+                statusNode.className = `status-badge ${isBehind ? 'status-behind' : 'status-on-track'}`;
             }
-
             setText('totalSavingsDisplay', `₹${(data.totalSaved || 0).toLocaleString()}`);
             setText('remainingAmountDisplay', `₹${(data.remainingAmount || 0).toLocaleString()}`);
             setText('savingsDailyNeed', `₹${Math.round(data.dailySavingsNeeded || 0)}`);
             setText('savingsDaysLeft', data.daysRemaining || 0);
-            setText('savingsDailyMsg', `Target Forecast: ₹${Math.round(data.dailySavingsNeeded || 0)}/day`);
-            
-            // Also fetch savings list
-            const savings = await apiFetch(`/savings/${userId}`).catch(() => []);
-            renderSavingsList(savings);
-        } catch (e) { 
-            console.error("Savings fetch failure:", e);
-            setText('goalPercentageNode', 'Error');
+            const dailyNeed = Math.round(data.dailySavingsNeeded || 0);
+            const motivMsgs = [
+                progress >= 80 ? '🎉 Almost there! You\'re crushing your savings goal!' : '',
+                progress >= 50 && progress < 80 ? '💪 Great progress! Keep the momentum going!' : '',
+                progress > 0 && progress < 50 ? '🌱 Every rupee saved counts. Stay consistent!' : '',
+                progress === 0 ? '🚀 Start your savings journey today — your future self will thank you!' : ''
+            ].filter(Boolean)[0] || '';
+            setText('savingsDailyMsg', motivMsgs || `Target: Save ₹${dailyNeed}/day to stay on track`);
+            renderSmartSuggestions(isBehind, data, Array.isArray(expenses) ? expenses : []);
+            renderSavingsList(Array.isArray(savings) ? savings : []);
+        } catch (e) {
+            console.error('Savings fetch failure:', e);
+            setText('goalPercentageNode', '0%');
+            setText('goalAmountNode', 'Set a goal to get started');
+            setText('savingsDailyMsg', '🚀 Define a savings goal to begin tracking progress!');
         }
     };
-
     if (addSavingForm) {
         addSavingForm.onsubmit = async (e) => {
             e.preventDefault();
-            const amount = parseFloat(document.getElementById('savingAmountInput').value);
+            const amount = parseFloat(document.getElementById('savingAmountInput')?.value);
+            if (!amount || amount <= 0) return showToast('Enter a valid amount', 'danger');
             try {
-                await apiFetch(`/addSaving`, {
-                    method: 'POST',
-                    body: JSON.stringify({ userId, amount, date: new Date().toISOString().split('T')[0] })
-                });
-                showToast("Saving recorded! 👛", "success");
+                await apiFetch(`/addSaving`, { method: 'POST', body: JSON.stringify({ userId, amount, date: new Date().toISOString().split('T')[0] }) });
+                showToast('Saving recorded! 👛', 'success');
                 addSavingForm.reset();
                 await fetchSavingsData();
-                refreshAllMetrics();
-            } catch (e) { showToast("Failed to record saving", "danger"); }
+            } catch (e) { showToast('Failed to record saving', 'danger'); }
         };
     }
-
     if (setGoalForm) {
         setGoalForm.onsubmit = async (e) => {
             e.preventDefault();
             try {
-                await apiFetch(`/setGoal`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        userId,
-                        targetAmount: parseFloat(document.getElementById('goalAmountInput').value),
-                        deadline: document.getElementById('goalDateInput').value
-                    })
-                });
-                showToast("New strategy defined! 🎯", "success");
+                await apiFetch(`/setGoal`, { method: 'POST', body: JSON.stringify({ userId, targetAmount: parseFloat(document.getElementById('goalAmountInput')?.value), deadline: document.getElementById('goalDateInput')?.value }) });
+                showToast('New strategy defined! 🎯', 'success');
                 await fetchSavingsData();
-                refreshAllMetrics();
-            } catch (e) { showToast("Failed to define goal", "danger"); }
+            } catch (e) { showToast('Failed to define goal', 'danger'); }
         };
     }
     fetchSavingsData();
+}
+function renderSmartSuggestions(isBehind, goalData, expenses) {
+    const panel = document.getElementById('savingsSuggestionsPanel');
+    if (!panel) return;
+    if (!isBehind) { panel.classList.add('hidden'); return; }
+    panel.classList.remove('hidden');
+    const groups = expenses.reduce((acc, e) => { const c = (e.category || 'Other'); acc[c] = (acc[c] || 0) + (e.amount || 0); return acc; }, {});
+    const topCat = Object.keys(groups).sort((a, b) => groups[b] - groups[a])[0] || 'top category';
+    const topAmt = groups[topCat] || 0;
+    const daily = Math.round(goalData.dailySavingsNeeded || 0);
+    const cutAmt = Math.round(topAmt * 0.2);
+    panel.innerHTML = `<h3><i class="ph ph-warning-circle"></i> You're Behind — Here's How to Catch Up</h3>
+        <div class="suggestion-item"><i class="ph ph-knife"></i> Reduce <strong>${topCat}</strong> spending — save ~₹${cutAmt.toLocaleString()}</div>
+        <div class="suggestion-item"><i class="ph ph-calendar-check"></i> Save ₹${daily.toLocaleString()}/day to recover on track</div>
+        <div class="suggestion-item"><i class="ph ph-chart-line-down"></i> Cut your top spending category by 20%</div>
+        <div class="suggestion-item"><i class="ph ph-lightbulb"></i> Try a no-spend day this week to boost savings</div>`;
 }
 
 /**
@@ -334,6 +353,7 @@ async function setupProfile() {
     const avatarInput = document.getElementById('avatarUploadInput');
     const profileForm = document.getElementById('profileForm');
     const resetDataBtn = document.getElementById('resetDataBtn');
+    const saveBtn = document.getElementById('saveProfileBtn');
 
     const loadProfile = async () => {
         try {
@@ -341,7 +361,7 @@ async function setupProfile() {
             setValue('profileName', data.name);
             setValue('profileBudget', data.monthlyBudget);
             setValue('profileSavings', data.savingsGoal);
-            setText('profileEmail', data.email || "No Email Linked");
+            setValue('profileEmail', data.email || 'No Email Linked');
 
             const display = document.getElementById('profileImageDisplay');
             const placeholder = document.getElementById('profileAvatarPlaceholder');
@@ -353,73 +373,87 @@ async function setupProfile() {
                 display.style.display = 'none';
                 placeholder.style.display = 'flex';
             }
-            
-            const badgeContainer = document.getElementById('badgesContainer');
-            if (badgeContainer) {
-                const insights = await apiFetch(`/insights/${userId}`).catch(() => ({}));
-                badgeContainer.innerHTML = insights.badges?.map(b => `<div class="badge-card"><i class="ph ph-shield-star text-gradient"></i> ${b}</div>`).join('') || '<p class="text-secondary text-sm">No badges yet.</p>';
-            }
-        } catch (e) { console.error("Profile load failure"); }
+            await loadBadges(userId, data);
+        } catch (e) { console.error('Profile load failure:', e); }
+    };
+
+    const loadBadges = async (uid, profileData) => {
+        const badgeContainer = document.getElementById('badgesContainer');
+        if (!badgeContainer) return;
+        try {
+            const insights = await apiFetch(`/insights/${uid}`).catch(() => ({}));
+            const serverBadges = insights.badges || [];
+            const localBadges = generateLocalBadges(profileData);
+            const allBadges = [...new Set([...serverBadges, ...localBadges])];
+            const icons = ['ph-shield-star', 'ph-trophy', 'ph-medal', 'ph-star', 'ph-lightning', 'ph-fire'];
+            badgeContainer.innerHTML = allBadges.length
+                ? allBadges.map((b, i) => `<div class="badge-card"><i class="ph ${icons[i % icons.length]} text-gradient"></i> ${b}</div>`).join('')
+                : '<p class="text-secondary text-sm">Complete actions to earn badges!</p>';
+        } catch (e) { badgeContainer.innerHTML = '<p class="text-secondary text-sm">Badges unavailable</p>'; }
     };
 
     if (avatarInput) {
         avatarInput.onchange = async (e) => {
             const file = e.target.files[0];
-            if (!file || !supabaseClient) return;
+            if (!file) return;
+            const display = document.getElementById('profileImageDisplay');
+            const placeholder = document.getElementById('profileAvatarPlaceholder');
+            // Always show local preview immediately
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (display && placeholder) {
+                    display.src = ev.target.result;
+                    display.style.display = 'block';
+                    placeholder.style.display = 'none';
+                }
+            };
+            reader.readAsDataURL(file);
+            // Then try to upload to Supabase
+            if (!supabaseClient) { showToast('Photo previewed locally (Supabase not connected)', 'info'); return; }
             try {
-                showToast("Uploading...", "info");
+                showToast('Uploading...', 'info');
                 const path = `avatars/${userId}-${Date.now()}.png`;
                 const { data, error } = await supabaseClient.storage.from('profile-images').upload(path, file);
-                
                 if (error) {
-                    if (error.message?.includes('Bucket not found')) {
-                        throw new Error("Missing 'profile-images' bucket in Supabase! Please create it and set to public.");
-                    }
+                    if (error.message?.includes('Bucket not found')) throw new Error("Create 'profile-images' bucket in Supabase (set to public).");
                     throw error;
                 }
-
                 const { data: { publicUrl } } = supabaseClient.storage.from('profile-images').getPublicUrl(path);
-                await apiFetch(`/profile`, {
-                    method: 'POST',
-                    body: JSON.stringify({ userId, imageUrl: publicUrl })
-                });
-                showToast("Avatar synchronized! ✨", "success");
-                await loadProfile();
-                refreshAllMetrics();
-            } catch (err) { 
-                console.error(err); 
-                showToast(err.message || "Upload error", "danger"); 
-            }
+                await apiFetch(`/profile`, { method: 'POST', body: JSON.stringify({ userId, imageUrl: publicUrl }) });
+                showToast('Avatar uploaded! ✨', 'success');
+            } catch (err) { console.error(err); showToast(err.message || 'Upload error — photo shown locally', 'danger'); }
         };
     }
 
     if (profileForm) {
         profileForm.onsubmit = async (e) => {
             e.preventDefault();
+            if (saveBtn) { saveBtn.classList.add('btn-save-loading'); saveBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Saving...'; }
             try {
-                await apiFetch(`/profile`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        userId,
-                        name: document.getElementById('profileName').value,
-                        monthlyBudget: parseFloat(document.getElementById('profileBudget').value),
-                        savingsGoal: parseFloat(document.getElementById('profileSavings').value)
-                    })
-                });
-                showToast("Profile updated successfully!", "success");
-                refreshAllMetrics();
-            } catch (e) { showToast("Sync failed", "danger"); }
+                await apiFetch(`/profile`, { method: 'POST', body: JSON.stringify({
+                    userId,
+                    name: document.getElementById('profileName')?.value,
+                    monthlyBudget: parseFloat(document.getElementById('profileBudget')?.value) || 0,
+                    savingsGoal: parseFloat(document.getElementById('profileSavings')?.value) || 0
+                })});
+                if (saveBtn) { saveBtn.classList.remove('btn-save-loading'); saveBtn.classList.add('btn-save-success'); saveBtn.innerHTML = '<i class="ph ph-check-circle"></i> Saved!'; }
+                showToast('Profile updated successfully!', 'success');
+                setTimeout(() => { if (saveBtn) { saveBtn.classList.remove('btn-save-success'); saveBtn.innerHTML = '<i class="ph ph-check-circle"></i> Update Profile'; } }, 2000);
+            } catch (e) {
+                if (saveBtn) { saveBtn.classList.remove('btn-save-loading'); saveBtn.innerHTML = '<i class="ph ph-check-circle"></i> Update Profile'; }
+                showToast('Sync failed', 'danger');
+            }
         };
     }
 
     if (resetDataBtn) {
         resetDataBtn.onclick = async () => {
-            if (confirm("🚨 WARNING: This will permanently wipe all your records and goals. Continue?")) {
+            if (confirm('🚨 WARNING: This will permanently wipe all your records and goals. Continue?')) {
                 try {
                     await apiFetch(`/reset/${userId}`, { method: 'DELETE' });
-                    showToast("System Reset Complete", "info");
+                    showToast('System Reset Complete', 'info');
                     setTimeout(() => location.reload(), 1000);
-                } catch (e) { showToast("Reset failed", "danger"); }
+                } catch (e) { showToast('Reset failed', 'danger'); }
             }
         };
     }
@@ -653,3 +687,28 @@ function showToast(msg, type = "info") {
     document.body.appendChild(toast);
     setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 400); }, 3000);
 }
+
+function generateLocalBadges(profileData) {
+    const badges = [];
+    if (profileData?.name) badges.push('Profile Setup Complete');
+    if (profileData?.monthlyBudget > 0) badges.push('Budget Planner');
+    if (profileData?.savingsGoal > 0) badges.push('Goal Setter');
+    if (profileData?.imageUrl) badges.push('Avatar Uploaded');
+    if (badges.length === 0) badges.push('Welcome to PocketSense!');
+    return badges;
+}
+
+// Highlight active mobile nav link
+function highlightMobileNav() {
+    const path = window.location.pathname;
+    document.querySelectorAll('.mobile-bottom-nav a').forEach(a => {
+        a.classList.remove('active');
+        if ((path.includes('dashboard') && a.href.includes('dashboard')) ||
+            (path.includes('insights') && a.href.includes('insights')) ||
+            (path.includes('savings') && a.href.includes('savings')) ||
+            (path.includes('profile') && a.href.includes('profile'))) {
+            a.classList.add('active');
+        }
+    });
+}
+document.addEventListener('DOMContentLoaded', highlightMobileNav);
